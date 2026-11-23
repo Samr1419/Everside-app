@@ -227,9 +227,18 @@ export async function deleteAccount() {
 // Keeps a record of what the parent agreed to, and under which version of our policies.
 export async function recordConsents(userId, consentTypes, policyVersion) {
   if (!consentTypes?.length) return { error: null };
-  const rows = consentTypes.map((consent_type) => ({ user_id: userId, consent_type, policy_version: policyVersion }));
+  // The sign up screen uses camelCase names, the database only accepts these exact snake_case ones.
+  const NAMES = { responsibility: "responsibility", specialCategory: "special_category", aiProcessing: "ai_processing", aiLimits: "ai_limits", humanReview: "human_review" };
+  const rows = consentTypes.filter((t) => NAMES[t]).map((t) => ({ user_id: userId, consent_type: NAMES[t], policy_version: policyVersion }));
   const { error } = await supabase.from("consent_records").insert(rows);
   return { error };
+}
+
+// True once the person has been through sign up and agreed to our consents. Used to stop someone who
+// signs in with Google, Facebook, X or an email link from skipping sign up and its consents.
+export async function hasConsents(userId) {
+  const { count, error } = await supabase.from("consent_records").select("user_id", { count: "exact", head: true }).eq("user_id", userId);
+  return { has: !error && (count || 0) > 0, error };
 }
 
 export async function exportFamilyData(userId) {
