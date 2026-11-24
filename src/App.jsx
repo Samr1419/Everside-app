@@ -203,7 +203,7 @@ export default function EversideApp() {
   const [email, setEmail] = useState("");
   const [showSignIn, setShowSignIn] = useState(() => { try { return new URLSearchParams(window.location.search).get("mode") === "signin"; } catch { return false; } });       // the "already have an account" screen
   const [signInNotice, setSignInNotice] = useState(null);
-  const [authMethod, setAuthMethod] = useState("email");   // "email", or a social provider: "google", "facebook", "x"
+  const [authMethod, setAuthMethod] = useState("email");   // "email", or a social provider: "google" or "facebook"
   const [passcode, setPasscode] = useState("");
   const [address, setAddress] = useState("");
   const [postcode, setPostcode] = useState("");

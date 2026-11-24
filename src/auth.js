@@ -10,11 +10,10 @@ export async function signInWithMagicLink(email, { returning = false } = {}) {
 }
 
 // Social sign in. Supabase handles the whole round trip and sends the person back to this site signed in.
-// Provider names are Supabase's: "google", "facebook" and "x" (the newer X OAuth 2.0 provider).
+// Provider names are Supabase's: "google" and "facebook".
 export const SOCIAL_PROVIDERS = [
   { id: "google", label: "Google" },
   { id: "facebook", label: "Facebook" },
-  { id: "x", label: "X" },
 ];
 
 export async function signInWithProvider(provider) {

@@ -235,7 +235,7 @@ export async function recordConsents(userId, consentTypes, policyVersion) {
 }
 
 // True once the person has been through sign up and agreed to our consents. Used to stop someone who
-// signs in with Google, Facebook, X or an email link from skipping sign up and its consents.
+// signs in with Google, Facebook or an email link from skipping sign up and its consents.
 export async function hasConsents(userId) {
   const { count, error } = await supabase.from("consent_records").select("user_id", { count: "exact", head: true }).eq("user_id", userId);
   return { has: !error && (count || 0) > 0, error };
