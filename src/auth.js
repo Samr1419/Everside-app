@@ -3,8 +3,25 @@ import { supabase } from "./supabaseClient";
 // Passwordless — matches the onboarding flow, which only ever asks for an
 // email address, not a separate account password. Supabase emails a magic
 // link; clicking it signs the user in.
-export async function signInWithMagicLink(email) {
-  const { data, error } = await supabase.auth.signInWithOtp({ email });
+export async function signInWithMagicLink(email, { returning = false } = {}) {
+  // Someone signing back in must already have an account, so never create one on this path.
+  const { data, error } = await supabase.auth.signInWithOtp({ email, options: returning ? { shouldCreateUser: false } : undefined });
+  return { data, error };
+}
+
+// Social sign in. Supabase handles the whole round trip and sends the person back to this site signed in.
+// Provider names are Supabase's: "google", "facebook" and "x" (the newer X OAuth 2.0 provider).
+export const SOCIAL_PROVIDERS = [
+  { id: "google", label: "Google" },
+  { id: "facebook", label: "Facebook" },
+  { id: "x", label: "X" },
+];
+
+export async function signInWithProvider(provider) {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: window.location.origin },
+  });
   return { data, error };
 }
 

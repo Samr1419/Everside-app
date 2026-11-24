@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-import { signInWithMagicLink, getCurrentUser, onAuthStateChange, setVaultPasscode, checkVaultPasscode } from "./auth";
+import { signInWithMagicLink, signInWithProvider, SOCIAL_PROVIDERS, getCurrentUser, onAuthStateChange, setVaultPasscode, checkVaultPasscode } from "./auth";
 import {
   fetchParents, addParent, fetchChildren, addChild,
   fetchVaultItems, addVaultItem, fetchActions, addAction, updateActionStatus,
   deleteChildData, deleteAccount, recordConsents, fetchAiUsage, touchActivity, exportFamilyData, setProfileDetails, fetchProfile,
   uploadVaultFile, getVaultFileUrl, deleteVaultItemAndFile,
-  submitConversationFeedback, startCheckout, openBillingPortal, cancelPlan, resumePlan,
+  submitConversationFeedback, startCheckout, openBillingPortal, cancelPlan, resumePlan, hasConsents,
 } from "./dataLayer";
 import { buildExportZip, downloadBlob } from "./exportZip";
 import {
@@ -201,6 +201,9 @@ export default function EversideApp() {
   // Onboarding draft — local only, nothing saved until the magic link is confirmed
   const [step, setStep] = useState(0);
   const [email, setEmail] = useState("");
+  const [showSignIn, setShowSignIn] = useState(() => { try { return new URLSearchParams(window.location.search).get("mode") === "signin"; } catch { return false; } });       // the "already have an account" screen
+  const [signInNotice, setSignInNotice] = useState(null);
+  const [authMethod, setAuthMethod] = useState("email");   // "email", or a social provider: "google", "facebook", "x"
   const [passcode, setPasscode] = useState("");
   const [address, setAddress] = useState("");
   const [postcode, setPostcode] = useState("");
@@ -295,6 +298,16 @@ export default function EversideApp() {
       } finally {
         localStorage.removeItem(PENDING_KEY);
       }
+    } else {
+      // Not coming from sign up. Only let them in if they already have an account with consents on record.
+      const { has } = await hasConsents(user.id);
+      if (!has) {
+        try { await supabase.auth.signOut(); } catch {}
+        setSession(null);
+        setShowSignIn(false);
+        setSignInNotice("We couldn't find an Everside account for that. Please create one first, it only takes a few minutes.");
+        return;
+      }
     }
     setSession(user);
     touchActivity();   // lets the server know this account is in use (see the 6 month inactivity rule)
@@ -363,12 +376,24 @@ export default function EversideApp() {
 
   async function finishOnboarding() {
     setOnboardError(null);
+    const pendingPayload = JSON.stringify({ consentTypes: Object.keys(consents).filter((k) => consents[k]), parents, children: obChildren, passcode, address: `${address}, ${postcode}`.trim(), localAuthority });
+    if (authMethod !== "email") {
+      // Social sign in leaves this page and comes back signed in, so keep their answers first.
+      // handleAuthenticated picks them up on return, exactly as it does for the email link.
+      localStorage.setItem(PENDING_KEY, pendingPayload);
+      const { error: socialError } = await signInWithProvider(authMethod);
+      if (socialError) {
+        localStorage.removeItem(PENDING_KEY);
+        setOnboardError(socialError.message || "We couldn't start that sign in. Please try again or use your email.");
+      }
+      return;
+    }
     const { error } = await signInWithMagicLink(email);
     if (error) {
       setOnboardError(error.message || "Something went wrong sending the sign-in email.");
       return;
     }
-    localStorage.setItem(PENDING_KEY, JSON.stringify({ consentTypes: Object.keys(consents).filter((k) => consents[k]), parents, children: obChildren, passcode, address: `${address}, ${postcode}`.trim(), localAuthority }));
+    localStorage.setItem(PENDING_KEY, pendingPayload);
     setPendingEmail(email);
     setAwaitingMagicLink(true);
   }
@@ -640,11 +665,16 @@ export default function EversideApp() {
     );
   }
 
+  if (!session && showSignIn) {
+    return <SignIn fredoka={fredoka} quicksand={quicksand} onBack={() => { setSignInNotice(null); setShowSignIn(false); }} notice={signInNotice}
+      onEmailSent={(addr) => { setPendingEmail(addr); setAwaitingMagicLink(true); }} />;
+  }
+
   if (!session) {
     return (
-      <Onboarding
+      <Onboarding onShowSignIn={() => { setSignInNotice(null); setShowSignIn(true); }} signInNotice={signInNotice}
         fredoka={fredoka} quicksand={quicksand} step={step} setStep={setStep}
-        email={email} setEmail={setEmail} passcode={passcode} setPasscode={setPasscode}
+        email={email} setEmail={setEmail} authMethod={authMethod} setAuthMethod={setAuthMethod} passcode={passcode} setPasscode={setPasscode}
         address={address} setAddress={setAddress} postcode={postcode} setPostcode={setPostcode}
         lookupLocalAuthority={lookupLocalAuthority} laLookupStatus={laLookupStatus}
         localAuthority={localAuthority} setLocalAuthority={setLocalAuthority}
@@ -729,8 +759,63 @@ export default function EversideApp() {
 
 // ============ ONBOARDING ============
 
+function SocialIcon({ id }) {
+  if (id === "google") return (
+    <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+  );
+  if (id === "facebook") return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.8-4.7 4.54-4.7 1.31 0 2.68.24 2.68.24v2.97h-1.5c-1.5 0-1.96.93-1.96 1.89v2.26h3.34l-.53 3.49h-2.81V24C19.61 23.1 24 18.1 24 12.07z"/></svg>
+  );
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="#000" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+  );
+}
+
+function SignIn({ fredoka, quicksand, onBack, notice, onEmailSent }) {
+  const [addr, setAddr] = useState("");
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function social(id) {
+    setErr(null);
+    const { error } = await signInWithProvider(id);
+    if (error) setErr(error.message || "We couldn't start that sign in. Please try again.");
+  }
+  async function email() {
+    setErr(null); setBusy(true);
+    const { error } = await signInWithMagicLink(addr.trim(), { returning: true });
+    setBusy(false);
+    if (error) { setErr("We couldn't find an Everside account for that email. Please check it, or create an account."); return; }
+    onEmailSent(addr.trim());
+  }
+  return (
+    <div className="min-h-screen bg-stone-50 flex flex-col" style={quicksand}>
+      <div className="max-w-md mx-auto w-full px-5 pt-8 pb-16 flex-1">
+        <div className="flex items-center gap-2 mb-8"><Sparkles size={18} className="text-orange-500" /><p style={fredoka} className="text-lg font-semibold text-slate-800">Everside</p></div>
+        {notice && <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 font-semibold">{notice}</div>}
+        <h2 style={fredoka} className="text-xl font-semibold text-slate-800 mb-1">Welcome back</h2>
+        <p className="text-sm text-slate-500 mb-5">Sign in the way you signed up.</p>
+        <div className="space-y-2 mb-4">
+          {SOCIAL_PROVIDERS.map((p) => (
+            <button key={p.id} type="button" onClick={() => social(p.id)}
+              className="w-full flex items-center justify-center gap-3 border border-stone-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-white">
+              <SocialIcon id={p.id} />Continue with {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 my-4"><div className="h-px flex-1 bg-stone-200" /><span className="text-xs text-slate-400 font-bold">or use your email</span><div className="h-px flex-1 bg-stone-200" /></div>
+        <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
+        <input type="email" value={addr} onChange={(e) => setAddr(e.target.value)} placeholder="you@example.com"
+          className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-4 outline-none focus:border-orange-300" />
+        <button disabled={!addr.includes("@") || busy} onClick={email} className="w-full bg-orange-500 disabled:bg-stone-300 text-white font-bold py-3 rounded-2xl">Send my sign-in link</button>
+        {err && <div className="mt-3 bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 font-semibold">{err}</div>}
+        <p className="text-sm text-slate-500 text-center mt-6">New to Everside? <button type="button" onClick={onBack} className="font-bold text-orange-600">Create an account</button></p>
+      </div>
+    </div>
+  );
+}
+
 function Onboarding(props) {
-  const { fredoka, quicksand, step, setStep, email, setEmail, passcode, setPasscode,
+  const { onShowSignIn, signInNotice, fredoka, quicksand, step, setStep, email, setEmail, authMethod, setAuthMethod, passcode, setPasscode,
     address, setAddress, postcode, setPostcode, lookupLocalAuthority, laLookupStatus,
     localAuthority, setLocalAuthority,
     parents, setParents, updateParent, children, setChildren, updateChild, toggleCondition,
@@ -745,11 +830,27 @@ function Onboarding(props) {
 
         {step === 0 && (
           <div>
+            {signInNotice && <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-800 font-semibold">{signInNotice}</div>}
             <h2 style={fredoka} className="text-xl font-semibold text-slate-800 mb-1">Create your account</h2>
-            <p className="text-sm text-slate-500 mb-6">We'll email you a sign-in link, no password needed. This also sets your Vault passcode.</p>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
-              className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-4 outline-none focus:border-orange-300" />
+            <p className="text-sm text-slate-500 mb-5">Sign up with an account you already have, or use your email and we'll send a sign-in link, no password needed. This also sets your Vault passcode.</p>
+            <div className="space-y-2 mb-3">
+              {SOCIAL_PROVIDERS.map((p) => (
+                <button key={p.id} type="button" onClick={() => setAuthMethod(p.id)} aria-pressed={authMethod === p.id}
+                  className={`w-full flex items-center justify-center gap-3 border rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-white transition-colors ${authMethod === p.id ? "border-orange-400 ring-2 ring-orange-200" : "border-stone-200"}`}>
+                  <SocialIcon id={p.id} />Continue with {p.label}
+                </button>
+              ))}
+            </div>
+            {authMethod === "email" ? (
+              <>
+                <div className="flex items-center gap-3 my-4"><div className="h-px flex-1 bg-stone-200" /><span className="text-xs text-slate-400 font-bold">or use your email</span><div className="h-px flex-1 bg-stone-200" /></div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+                  className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-4 outline-none focus:border-orange-300" />
+              </>
+            ) : (
+              <p className="text-xs text-slate-500 mb-4">You'll sign in with {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label} at the last step, after you've answered the questions. We only receive your name and email from them. <button type="button" onClick={() => setAuthMethod("email")} className="font-bold text-orange-600">Use email instead</button></p>
+            )}
             <label className="block text-xs font-bold text-slate-500 mb-1">Set a 4-digit Vault passcode</label>
             <input type="tel" inputMode="numeric" maxLength={4} value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="••••" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-6 outline-none focus:border-orange-300 tracking-[0.5em]" />
@@ -768,8 +869,9 @@ function Onboarding(props) {
             <label className="block text-xs font-bold text-slate-500 mb-1">Local authority</label>
             <input value={localAuthority} onChange={(e) => setLocalAuthority(e.target.value)} placeholder="e.g. Hillingdon"
               className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-6 outline-none focus:border-orange-300" />
-            <button disabled={!email.includes("@") || passcode.length !== 4} onClick={() => setStep(1)}
+            <button disabled={(authMethod === "email" && !email.includes("@")) || passcode.length !== 4} onClick={() => setStep(1)}
               className="w-full bg-orange-500 disabled:bg-stone-300 text-white font-bold py-3 rounded-2xl transition-colors">Continue</button>
+            <p className="text-sm text-slate-500 text-center mt-5">Already have an account? <button type="button" onClick={onShowSignIn} className="font-bold text-orange-600">Sign in</button></p>
           </div>
         )}
 
@@ -858,7 +960,7 @@ function Onboarding(props) {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setStep(2)} className="px-4 py-3 rounded-2xl border border-stone-200 text-slate-500 font-bold text-sm">Back</button>
-              <button disabled={!canFinishConsent} onClick={finishOnboarding} className="flex-1 bg-orange-500 disabled:bg-stone-300 text-white font-bold py-3 rounded-2xl">Send my sign-in link</button>
+              <button disabled={!canFinishConsent} onClick={finishOnboarding} className="flex-1 bg-orange-500 disabled:bg-stone-300 text-white font-bold py-3 rounded-2xl">{authMethod === "email" ? "Send my sign-in link" : `Continue with ${SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label}`}</button>
             </div>
             {onboardError && (
               <div className="mt-3 bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 font-semibold">{onboardError}</div>
