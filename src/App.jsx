@@ -837,7 +837,7 @@ function Onboarding(props) {
               {SOCIAL_PROVIDERS.map((p) => (
                 <button key={p.id} type="button" onClick={() => setAuthMethod(p.id)} aria-pressed={authMethod === p.id}
                   className={`w-full flex items-center justify-center gap-3 border rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-white transition-colors ${authMethod === p.id ? "border-orange-400 ring-2 ring-orange-200" : "border-stone-200"}`}>
-                  <SocialIcon id={p.id} />Continue with {p.label}
+                  <SocialIcon id={p.id} />{authMethod === p.id ? `${p.label} selected ✓` : `Continue with ${p.label}`}
                 </button>
               ))}
             </div>
@@ -849,13 +849,17 @@ function Onboarding(props) {
                   className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-4 outline-none focus:border-orange-300" />
               </>
             ) : (
-              <p className="text-xs text-slate-500 mb-4">You'll sign in with {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label} at the last step, after you've answered the questions. We only receive your name and email from them. <button type="button" onClick={() => setAuthMethod("email")} className="font-bold text-orange-600">Use email instead</button></p>
+              <div className="mb-4 bg-orange-50 border border-orange-200 rounded-2xl p-3 text-xs text-slate-600">
+                <p className="font-bold text-slate-700 mb-1">Great, you'll use {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label}.</p>
+                <p>Fill in the next few steps first. At the end, we'll take you to {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label} to sign in. We only receive your name and email from them.</p>
+                <button type="button" onClick={() => setAuthMethod("email")} className="mt-2 font-bold text-orange-600">Use email instead</button>
+              </div>
             )}
             <label className="block text-xs font-bold text-slate-500 mb-1">Set a 4-digit Vault passcode</label>
             <input type="tel" inputMode="numeric" maxLength={4} value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, "").slice(0, 4))}
               placeholder="••••" className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-6 outline-none focus:border-orange-300 tracking-[0.5em]" />
             <label className="block text-xs font-bold text-slate-500 mb-1">Postcode</label>
-            <input value={postcode} onChange={(e) => setPostcode(e.target.value)} onBlur={lookupLocalAuthority} placeholder="e.g. HA6 1QD"
+            <input value={postcode} onChange={(e) => setPostcode(e.target.value)} onBlur={lookupLocalAuthority} placeholder="e.g. AB1 2CD"
               className="w-full border border-stone-200 rounded-2xl px-4 py-3 text-sm mb-2 outline-none focus:border-orange-300" />
             <p className="text-xs text-slate-400 mb-4">
               {laLookupStatus === "loading" && "Looking up your council…"}
