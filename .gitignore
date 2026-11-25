@@ -1,0 +1,6 @@
+
+# graphify: keep only the report, graph data and interactive view in git
+graphify-out/*
+!graphify-out/GRAPH_REPORT.md
+!graphify-out/graph.json
+!graphify-out/graph.html
