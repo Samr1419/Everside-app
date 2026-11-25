@@ -9,11 +9,12 @@ import {
   submitConversationFeedback, startCheckout, openBillingPortal, cancelPlan, resumePlan, hasConsents,
 } from "./dataLayer";
 import { buildExportZip, downloadBlob } from "./exportZip";
+import BlogTab from "./BlogTab";
 import {
   Home, MessageCircle, Lock, Map, CheckSquare, Send, Paperclip,
   X, ChevronRight, Clock, AlertCircle, CheckCircle2, FileText,
   Sparkles, ArrowLeft, Info, ShieldCheck, Download, Trash2,
-  UserPlus, Plus, Mail, BookOpen, Upload, Loader2, Eye, Star,
+  UserPlus, Plus, Mail, BookOpen, Upload, Loader2, Eye, Star, Newspaper,
 } from "lucide-react";
 
 const STAGES = [
@@ -721,8 +722,9 @@ export default function EversideApp() {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto pb-24">
-          {tab === "home" && <HomeTab fredoka={fredoka} child={currentChild} vault={vault} actions={actions} goToChat={() => setTab("chat")} goToActions={() => setTab("actions")} goToGuide={() => setTab("guide")} onOpenSecurity={() => setShowSecurityPanel(true)} />}
+          {tab === "home" && <HomeTab fredoka={fredoka} child={currentChild} vault={vault} actions={actions} goToChat={() => setTab("chat")} goToActions={() => setTab("actions")} goToGuide={() => setTab("guide")} goToBlog={() => setTab("blog")} onOpenSecurity={() => setShowSecurityPanel(true)} />}
           {tab === "guide" && <GuideTab fredoka={fredoka} onBack={() => setTab("home")} />}
+          {tab === "blog" && <BlogTab fredoka={fredoka} userId={session.id} onBack={() => setTab("home")} setToast={setToast} />}
           {tab === "chat" && (
             <ChatTab fredoka={fredoka} child={currentChild} messages={messages} loading={loading} input={input} setInput={setInput}
               pendingImage={pendingImage} setPendingImage={setPendingImage} fileInputRef={fileInputRef} handleFile={handleFile}
@@ -1379,7 +1381,7 @@ function SecurityPanel({ fredoka, onClose, requirePasscode, setRequirePasscode, 
   );
 }
 
-function HomeTab({ fredoka, child, vault, actions, goToChat, goToActions, goToGuide, onOpenSecurity }) {
+function HomeTab({ fredoka, child, vault, actions, goToChat, goToActions, goToGuide, goToBlog, onOpenSecurity }) {
   const dueSoon = actions.find((a) => a.status === "due");
   const vaultCount = Object.values(vault).reduce((n, arr) => n + arr.length, 0);
   return (
@@ -1390,6 +1392,9 @@ function HomeTab({ fredoka, child, vault, actions, goToChat, goToActions, goToGu
       </button>
       <button onClick={goToGuide} className="w-full text-left bg-sky-50 border border-sky-100 rounded-3xl px-5 py-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
         <BookOpen size={20} className="text-sky-600 flex-shrink-0" /><span className="text-sky-700 font-semibold flex-1">Read the EHCP &amp; SEND guide</span><ChevronRight size={18} className="text-sky-300" />
+      </button>
+      <button onClick={goToBlog} className="w-full text-left bg-violet-50 border border-violet-100 rounded-3xl px-5 py-4 flex items-center gap-3 hover:shadow-sm transition-shadow">
+        <Newspaper size={20} className="text-violet-600 flex-shrink-0" /><span className="text-violet-700 font-semibold flex-1">Parent articles: read or write one</span><ChevronRight size={18} className="text-violet-300" />
       </button>
       <div className="bg-emerald-50 border border-emerald-100 rounded-3xl p-5">
         <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 mb-3">{child.name}'s journey</p>

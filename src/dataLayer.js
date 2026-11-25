@@ -269,3 +269,72 @@ export async function fetchAiUsage() {
 export async function touchActivity() {
   try { await supabase.rpc("touch_activity"); } catch { /* ignore */ }
 }
+
+// ── Community articles (Blog) ─────────────────────────────────────────────
+// Writers choose "public" or "members". Every new article and every edit waits
+// for Everside to approve it (enforced in the database, see sql/05_community_articles.sql).
+export const BLOG_TAGS = ["EHCP", "Tribunals", "School placements", "Wellbeing", "Parent stories"];
+
+export async function fetchPublishedArticles() {
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("id, user_id, author_name, title, summary, body, tag, visibility, published_at")
+    .eq("status", "published")
+    .order("published_at", { ascending: false })
+    .limit(200);
+  return { data: data || [], error };
+}
+
+export async function fetchMyArticles(userId) {
+  const { data, error } = await supabase
+    .from("blog_posts")
+    .select("id, author_name, title, summary, body, tag, visibility, status, review_note, updated_at, published_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+  return { data: data || [], error };
+}
+
+export async function saveArticle(userId, { id, author_name, title, summary, body, tag, visibility }) {
+  const row = { author_name, title, summary, body, tag, visibility };
+  const q = id
+    ? supabase.from("blog_posts").update(row).eq("id", id).eq("user_id", userId)
+    : supabase.from("blog_posts").insert([{ ...row, user_id: userId }]);
+  const { error } = await q;
+  return { error };
+}
+
+export async function deleteArticle(id) {
+  const { error } = await supabase.from("blog_posts").delete().eq("id", id);
+  return { error };
+}
+
+export async function reportArticle(userId, postId, reason) {
+  const { error } = await supabase.from("blog_reports").insert([{ post_id: postId, user_id: userId, reason }]);
+  return { error };
+}
+
+export async function isBlogAdmin() {
+  const { data } = await supabase.rpc("is_blog_admin");
+  return !!data;
+}
+
+export async function fetchReviewQueue() {
+  const [posts, reports] = await Promise.all([
+    supabase.from("blog_posts")
+      .select("id, author_name, title, summary, body, tag, visibility, status, updated_at")
+      .in("status", ["pending", "published"])
+      .order("updated_at", { ascending: true }),
+    supabase.from("blog_reports").select("id, post_id, reason, created_at").eq("resolved", false),
+  ]);
+  return { posts: posts.data || [], reports: reports.data || [], error: posts.error || reports.error };
+}
+
+export async function reviewArticle(id, status, note) {
+  const { error } = await supabase.rpc("review_blog_post", { p_id: id, p_status: status, p_note: note || null });
+  return { error };
+}
+
+export async function resolveReports(postId) {
+  const { error } = await supabase.from("blog_reports").update({ resolved: true }).eq("post_id", postId);
+  return { error };
+}

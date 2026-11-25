@@ -3,7 +3,7 @@
 // It throws if any step fails, so callers can report the problem and nothing is half hidden.
 import { adminHeaders } from "./supabaseAdmin.js";
 
-const TABLES = ["actions", "vault_items", "conversation_feedback", "children", "parents", "consent_records", "ai_usage"];
+const TABLES = ["blog_posts", "blog_reports", "actions", "vault_items", "conversation_feedback", "children", "parents", "consent_records", "ai_usage"];
 const BUCKET = "vault-files";
 
 export async function eraseUser(userId, env) {
