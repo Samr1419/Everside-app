@@ -801,6 +801,7 @@ function SignIn({ fredoka, quicksand, onBack, notice, onEmailSent }) {
               <SocialIcon id={p.id} />Continue with {p.label}
             </button>
           ))}
+          <p className="text-xs text-slate-500 text-center pt-1">Google may show our secure sign-in address (ending supabase.co). That's Everside.</p>
         </div>
         <div className="flex items-center gap-3 my-4"><div className="h-px flex-1 bg-stone-200" /><span className="text-xs text-slate-400 font-bold">or use your email</span><div className="h-px flex-1 bg-stone-200" /></div>
         <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
@@ -852,6 +853,7 @@ function Onboarding(props) {
               <div className="mb-4 bg-orange-50 border border-orange-200 rounded-2xl p-3 text-xs text-slate-600">
                 <p className="font-bold text-slate-700 mb-1">Great, you'll use {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label}.</p>
                 <p>Fill in the next few steps first. At the end, we'll take you to {SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label} to sign in. We only receive your name and email from them.</p>
+                {authMethod === "google" && <p className="mt-1">Google may show our secure sign-in address (ending supabase.co). That's Everside.</p>}
                 <button type="button" onClick={() => setAuthMethod("email")} className="mt-2 font-bold text-orange-600">Use email instead</button>
               </div>
             )}
@@ -966,6 +968,7 @@ function Onboarding(props) {
               <button onClick={() => setStep(2)} className="px-4 py-3 rounded-2xl border border-stone-200 text-slate-500 font-bold text-sm">Back</button>
               <button disabled={!canFinishConsent} onClick={finishOnboarding} className="flex-1 bg-orange-500 disabled:bg-stone-300 text-white font-bold py-3 rounded-2xl">{authMethod === "email" ? "Send my sign-in link" : `Continue with ${SOCIAL_PROVIDERS.find((p) => p.id === authMethod)?.label}`}</button>
             </div>
+            {authMethod === "google" && <p className="mt-2 text-xs text-slate-500 text-center">Google may show our secure sign-in address (ending supabase.co). That's Everside.</p>}
             {onboardError && (
               <div className="mt-3 bg-rose-50 border border-rose-200 rounded-2xl p-3 text-xs text-rose-700 font-semibold">{onboardError}</div>
             )}
